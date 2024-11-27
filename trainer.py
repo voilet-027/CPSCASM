@@ -9,6 +9,7 @@ import math
 import sys
 from tqdm import tqdm
 from torch.autograd import Variable
+from eval import Evaler
 
 def setSeedGlobal(seed):
     random.seed(seed)
@@ -87,7 +88,7 @@ config = Config()
 setSeedGlobal(config.seed)
 
 # ===== Model =====
-model = ModelMaker(config=config)
+model = ModelMaker().create(config)
 parameters = get_params_groups(model, weight_decay=config.weight_decay)
 optimizer = torch.optim.AdamW(parameters, lr=config.lr, betas=(0.9, 0.999), weight_decay=config.weight_decay)
 
@@ -100,14 +101,15 @@ precision_best = 0
 for epoch in range(0, config.epochs):
 
     threshold = cosine_decay(epoch, 10.0, 0.0, 0, config.epochs)
-    config.threshold = [threshold, top1]
+    config.threshold = threshold 
+    config.each_level_top1 = top1
 
     if config.use_strategy == False:
         if epoch == 0:
-            dataloader = DataMaker(config=config)
+            dataloader = DataMaker().create(config)
             lr_scheduler = create_lr_scheduler(optimizer, len(dataloader), config.epochs,warmup=False, warmup_epochs=1)
     else:
-        dataloader = DataMaker(config=config)
+        dataloader = DataMaker().create(config)
         if epoch == 0:
             lr_scheduler = create_lr_scheduler(optimizer, len(dataloader), config.epochs,warmup=False, warmup_epochs=1)
 
@@ -118,13 +120,15 @@ for epoch in range(0, config.epochs):
 
     # Log train info
     data_loader = tqdm(dataloader, file=sys.stdout)
+    syntheticloss = SyntheticLoss()
+    syntheticloss.setEpoch(epoch=epoch)
 
     for step, data in enumerate(data_loader):
 
         a, p, n = data
+        a, p, n = a.cuda(), p.cuda(), n.cuda()
         a, p, n = Variable(a), Variable(p), Variable(n),
-        syntheticloss = SyntheticLoss()
-        syntheticloss.setEpoch(epoch=epoch)
+        a, p, n = model(a), model(p), model(n)
 
         loss = syntheticloss(a, p, n)
        
@@ -142,5 +146,19 @@ for epoch in range(0, config.epochs):
             loss.item(),
             optimizer.param_groups[0]["lr"])
     
+    # Eval
+    topN, dis, top1 = Evaler.eval(model=model, config=config)
+    
+    # Save model
+    if topN[0] > precision_best:
+        precision_best = topN[0]
+        if config.save_best:
+            torch.save({'epoch': epoch, 'state_dict': model.state_dict()},
+                       config.save_path)
+            print(f"[Save] Save the New best checkpoint, top N: {topN}")
+    if not config.save_best:
+        torch.save({'epoch': epoch, 'state_dict': model.state_dict()},
+                       config.save_path)
+        print(f"[Save] Save the {epoch} checkpoint, top N: {topN}")
 
 

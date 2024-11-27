@@ -95,9 +95,8 @@ class HardNetLoss(nn.Module):
 
 
 class SyntheticLoss(nn.Module):
-    def __init__(self, mcfg):
+    def __init__(self):
         super().__init__()
-        self.mcfg = mcfg
         self.tripletLoss = TripletLoss(margin=0.3)
         self.corrPenaltyLoss = CorrelationPenaltyLoss()
         self.hardLoss = HardNetLoss(

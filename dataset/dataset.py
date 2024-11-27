@@ -6,9 +6,11 @@ import numpy as np
 import torch
 from PIL import Image
 from copy import deepcopy
+from torch.utils.data import Dataset
+import torchvision.transforms as transforms
 
-class ALTOdataset():
-    def __init__(self, root, train=True, transform=None, n_triplets = None, batch_size = None, fliprot=True, use_strategy = False , threshold = [5.0, [10 for _ in range(7)]],*args, **kw):
+class ALTOdataset(Dataset):
+    def __init__(self, root, train=True, transform=None, n_triplets = None, batch_size = None, fliprot=True, use_strategy = False,threshold = [5.0, [10 for _ in range(7)]],*args, **kw):
         super(ALTOdataset, self).__init__(*args, **kw)
         self.root=root
         self.transform = transform
@@ -43,17 +45,24 @@ class ALTOdataset():
             alpha = math.ceil(self.n_triplets / len(self.match_csv))
             # select the negative based on the reference
             negatives = list()
-            for p in self.match_csv["ref_name"] * alpha:
+            for p in self.match_csv["ref_ind"].tolist() * alpha:
                 # select the p 10 out of it
                 left = p - 10 if p - 10 > 0 else 0
                 right = p + 5 if p + 10 < len(self.match_csv) else len(self.match_csv)
-                negatives.append(random.sample(list(range(0, left) + list(range(right, len(self.match_csv))))))
+                negatives.append(random.sample(list(range(0, left)) + list(range(right, len(self.match_csv))), k=1)[0])
 
             # make n anchor - positive
-            self.triplets = list(zip(self.match_csv["query_ind"] * alpha, self.match_csv["ref_ind"] *alpha, negatives))[:self.n_triplets]
+            self.triplets = list(zip(self.match_csv["query_ind"].tolist() * alpha, self.match_csv["ref_ind"].tolist() *alpha, negatives))[:self.n_triplets]
         else:
             # cal each level triplet nums
+            total_nums = int(self.n_triplets / self.batch_size) * self.batch_size
+            nums_of_different_level = np.ceil(np.array(self.samples_level_weight) * total_nums)
+            if not nums_of_different_level.sum() == total_nums:
+                nums_of_different_level[np.argmax(nums_of_different_level)] -= nums_of_different_level.sum() - total_nums
+
             nums_of_different_level = np.ceil(np.array(self.samples_level_weight) * self.n_triplets)
+            # 记录所有采样的数据
+            all_sample_data = [[], [], []]
             for hard_level, sample_nums in enumerate(nums_of_different_level):
                 # 按照难度载入数据
                 filter_columns = self.match_csv["distance"] < hard_level
@@ -63,10 +72,9 @@ class ALTOdataset():
                     continue
 
                 indices = dict()
-                for p in list(set(self.match_csv["ref_name"])):
+                for p in list(set(self.match_csv["ref_ind"])):
                     # find out all possiable anchor
-                    all_possiable_anchors = list(self.match_csv[self.match_csv["ref_name"] == p]["query_ind"])
-                    indices[self.match_csv[self.match_csv["ref_name"] == p]["ref_ind"]] = all_possiable_anchors
+                    indices[p] = list(self.match_csv[self.match_csv["ref_ind"] == p]["query_ind"])
 
                 # n_classes是有多少张match imgs在数据里面
                 n_classes = len(indices)
@@ -120,36 +128,36 @@ class ALTOdataset():
                 tail += self.batch_size
                 self.triplets += batch_data
 
-    def load_test(self,):
+
+    def load_test(self, is_query):
         pass
 
     def __getitem__(self, index):
-        # get images
-        a, p, n = self.triplets[index]
-        
-        a = self.transform(Image.open(os.path.join(self.root, "query_images", self.query_data.iloc[a]["name"])))
-        p = self.transform(Image.open(os.path.join(self.root, "reference_images", self.ref_data.iloc[p]["name"])))
-        n = self.transform(Image.open(os.path.join(self.root, "reference_images", self.ref_data.iloc[n]["name"])))
-        
-        
-        if self.fliprot:
-            do_flip = random.random() > 0.5
-            do_rot = random.random() > 0.5
-            if do_rot:
-                a = a.permute(0,2,1)
-                p = p.permute(0,2,1)
-                n = n.permute(0,2,1)
-            if do_flip:
-                a = torch.from_numpy(deepcopy(a.numpy()[:,:,::-1]))
-                p = torch.from_numpy(deepcopy(p.numpy()[:,:,::-1]))
-                n = torch.from_numpy(deepcopy(n.numpy()[:,:,::-1]))
+        if self.train:
+            # get images
+            a, p, n = self.triplets[index]
+            a = self.transform(Image.open(os.path.join(self.root, "query_images", self.query_csv.iloc[a]["name"])).convert("RGB"))
+            p = self.transform(Image.open(os.path.join(self.root, "reference_images", self.reference_csv.iloc[p]["name"])).convert("RGB"))
+            n = self.transform(Image.open(os.path.join(self.root, "reference_images", self.reference_csv.iloc[n]["name"])).convert("RGB"))
+            
+            if self.fliprot:
+                do_flip = random.random() > 0.5
+                do_rot = random.random() > 0.5
+                if do_rot:
+                    a = a.permute(0,2,1)
+                    p = p.permute(0,2,1)
+                    n = n.permute(0,2,1)
+                if do_flip:
+                    a = torch.from_numpy(deepcopy(a.numpy()[:,:,::-1]))
+                    p = torch.from_numpy(deepcopy(p.numpy()[:,:,::-1]))
+                    n = torch.from_numpy(deepcopy(n.numpy()[:,:,::-1]))
 
-        return (a, p, n)
+            return (a, p, n)
 
     def __len__(self):
         return len(self.triplets)
 
-    def cosine_decay(epoch, start_value, end_value, start_epoch, end_epoch):
+    def cosine_decay(self, epoch, start_value, end_value, start_epoch, end_epoch):
         if epoch < start_epoch:
             return start_value
         elif epoch > end_epoch:
@@ -158,3 +166,25 @@ class ALTOdataset():
             progress = (epoch - start_epoch) / (end_epoch - start_epoch)
             cosine_decay_value = 0.5 * (1 + math.cos(math.pi * progress))
             return end_value + (start_value - end_value) * cosine_decay_value
+        
+class ALTOEvalDataset(Dataset):
+    def __init__(self, root, transform, is_query) -> None:
+        super().__init__()
+        self.root = root
+        self.is_query = is_query
+        self.transform = transform
+        if is_query:
+            self.data_csv = pd.read_csv(os.path.join(root, "query.csv"))
+        else:
+            self.data_csv = pd.read_csv(os.path.join(root, "reference.csv"))
+
+    def __getitem__(self, index):
+        if self.is_query:
+            img = self.transform(Image.open(os.path.join(self.root, "query_images", self.data_csv.iloc[index]["name"])).convert("RGB"))
+        else:
+            img = self.transform(Image.open(os.path.join(self.root, "reference_images", self.data_csv.iloc[index]["name"])).convert("RGB"))
+        return img
+
+    def __len__(self):
+        return len(self.data_csv)
+        
