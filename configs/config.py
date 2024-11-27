@@ -27,7 +27,7 @@ class Config(object):
 
         # 定义数据集的信息
         self.dataset_name = "ALTO"
-        self.root = "/home/datasets/ALTO/adjust_Train/oldTrain/Train"
+        self.root = "/home/datasets/ALTO/Train"
         self.transform = transforms.Compose([
             transforms.RandomRotation(30,PIL.Image.BILINEAR, expand=True),
             transforms.Resize(self.input_dim),
@@ -51,7 +51,7 @@ class Config(object):
         self.weight_decay = 0.05
         self.lr = 0.0001
         # 测试信息
-        self.eval_root = "/home/datasets/ALTO/adjust_Train/Test"
+        self.eval_root = "/home/datasets/ALTO/Val"
 
         # 备份配置文件
         if not os.path.exists(self.save_path):
