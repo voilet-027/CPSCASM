@@ -121,4 +121,4 @@ class SyntheticLoss(nn.Module):
         tripletLoss = self.tripletLoss(anchor, positive, negative)
         corrPenaltyLoss = (self.corrPenaltyLoss(anchor) + self.corrPenaltyLoss(positive) + self.corrPenaltyLoss(negative)) * 0.1
         hardLoss = self.hardLoss(anchor, positive)
-        return tripletLoss + self.a3_list[self.epoch] * corrPenaltyLoss + hardLoss
+        return tripletLoss.item(), hardLoss.item(), self.a3_list[self.epoch] * corrPenaltyLoss.item() ,tripletLoss + self.a3_list[self.epoch] * corrPenaltyLoss + hardLoss

@@ -33,7 +33,7 @@ class Config(object):
             transforms.Resize(self.input_dim),
             transforms.ToTensor()])
         self.train = True
-        self.n_triplets = 200000
+        self.n_triplets = 20000
         self.batch_size = 48
         self.fliprot = True
         self.use_strategy = True
@@ -47,7 +47,7 @@ class Config(object):
         self.test_batch_size = 1
 
         # 定义训练的信息
-        self.epochs = 20
+        self.epochs = 2
         self.weight_decay = 0.05
         self.lr = 0.0001
         # 测试信息

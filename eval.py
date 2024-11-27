@@ -113,9 +113,9 @@ class Evaler(object):
 
         return TopN_precision, average_match_dis, top1
     
-from Factorys.ModelFactory import ModelMaker
-config = Config()
-config.n_triplets = 200
-model = ModelMaker().create(config)
-topN, dis, top1 = Evaler.eval(model=model, config=config)
-print(topN, dis, top1)
+# from Factorys.ModelFactory import ModelMaker
+# config = Config()
+# config.n_triplets = 200
+# model = ModelMaker().create(config)
+# topN, dis, top1 = Evaler.eval(model=model, config=config)
+# print(topN, dis, top1)

@@ -10,6 +10,10 @@ import sys
 from tqdm import tqdm
 from torch.autograd import Variable
 from eval import Evaler
+import os
+import pandas as pd
+import warnings
+warnings.filterwarnings("ignore")
 
 def setSeedGlobal(seed):
     random.seed(seed)
@@ -81,84 +85,112 @@ def create_lr_scheduler(optimizer,
 
     return torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=f)
 
-# ===== Config =====
-config = Config()
+if __name__ == "__main__":
+    # ===== Config =====
+    config = Config()
 
-# ===== Seed Frozen =====
-setSeedGlobal(config.seed)
+    # ===== Seed Frozen =====
+    setSeedGlobal(config.seed)
 
-# ===== Model =====
-model = ModelMaker().create(config)
-parameters = get_params_groups(model, weight_decay=config.weight_decay)
-optimizer = torch.optim.AdamW(parameters, lr=config.lr, betas=(0.9, 0.999), weight_decay=config.weight_decay)
+    # ===== Model =====
+    model = ModelMaker().create(config)
+    parameters = get_params_groups(model, weight_decay=config.weight_decay)
+    optimizer = torch.optim.AdamW(parameters, lr=config.lr, betas=(0.9, 0.999), weight_decay=config.weight_decay)
 
-# ===== Trainning =====
-threshold = 10.0
-top1 = [7 for _ in range(10)]
+    # ===== Record Train Data =====
+    df = pd.DataFrame(columns=[
+        "epoch", "loss", "triplet", "hardnet", "cop"
+    ])
+    df_eval = pd.DataFrame(columns=[
+        "top1", "top2", "top3", "top4", "top5", "dis" 
+    ])
+    # ===== Trainning =====
+    threshold = 10.0
+    top1 = [7 for _ in range(10)]
 
-precision_best = 0
+    precision_best = 0
 
-for epoch in range(0, config.epochs):
+    for epoch in range(0, config.epochs):
 
-    threshold = cosine_decay(epoch, 10.0, 0.0, 0, config.epochs)
-    config.threshold = threshold 
-    config.each_level_top1 = top1
+        threshold = cosine_decay(epoch, 10.0, 0.0, 0, config.epochs)
+        config.threshold = threshold 
+        config.each_level_top1 = top1
 
-    if config.use_strategy == False:
-        if epoch == 0:
+        if config.use_strategy == False:
+            if epoch == 0:
+                dataloader = DataMaker().create(config)
+                lr_scheduler = create_lr_scheduler(optimizer, len(dataloader), config.epochs,warmup=False, warmup_epochs=1)
+        else:
             dataloader = DataMaker().create(config)
-            lr_scheduler = create_lr_scheduler(optimizer, len(dataloader), config.epochs,warmup=False, warmup_epochs=1)
-    else:
-        dataloader = DataMaker().create(config)
-        if epoch == 0:
-            lr_scheduler = create_lr_scheduler(optimizer, len(dataloader), config.epochs,warmup=False, warmup_epochs=1)
+            if epoch == 0:
+                lr_scheduler = create_lr_scheduler(optimizer, len(dataloader), config.epochs,warmup=False, warmup_epochs=1)
 
-    # switch to train mode
-    model.train()
-    optimizer.zero_grad()
-    mean_loss = torch.zeros(1).cuda()
-
-    # Log train info
-    data_loader = tqdm(dataloader, file=sys.stdout)
-    syntheticloss = SyntheticLoss()
-    syntheticloss.setEpoch(epoch=epoch)
-
-    for step, data in enumerate(data_loader):
-
-        a, p, n = data
-        a, p, n = a.cuda(), p.cuda(), n.cuda()
-        a, p, n = Variable(a), Variable(p), Variable(n),
-        a, p, n = model(a), model(p), model(n)
-
-        loss = syntheticloss(a, p, n)
-       
-        loss.backward()
-        optimizer.step()
+        # switch to train mode
+        model.train()
         optimizer.zero_grad()
+        mean_loss = torch.zeros(1).cuda()
 
-        # update lr
-        lr_scheduler.step()
-        mean_loss = (mean_loss * step + loss.detach()) / (step + 1)  # update mean losses
+        # Log train info
+        data_loader = tqdm(dataloader, file=sys.stdout)
+        syntheticloss = SyntheticLoss()
+        syntheticloss.setEpoch(epoch=epoch)
 
-        data_loader.desc = "[train epoch {}]  loss: {:.5f}, lr: {:.7f}".format(
-            epoch,
-            mean_loss.item(),
-            loss.item(),
-            optimizer.param_groups[0]["lr"])
-    
-    # Eval
-    topN, dis, top1 = Evaler.eval(model=model, config=config)
-    
-    # Save model
-    if topN[0] > precision_best:
-        precision_best = topN[0]
-        if config.save_best:
+        for step, data in enumerate(data_loader):
+
+            a, p, n = data
+            a, p, n = a.cuda(), p.cuda(), n.cuda()
+            a, p, n = Variable(a), Variable(p), Variable(n),
+            a, p, n = model(a), model(p), model(n)
+
+            triplet, hardnet, cop, loss = syntheticloss(a, p, n)
+        
+            loss.backward()
+            optimizer.step()
+            optimizer.zero_grad()
+
+            # update lr
+            lr_scheduler.step()
+            mean_loss = (mean_loss * step + loss.detach()) / (step + 1)  # update mean losses
+
+            data_loader.desc = "[train epoch {}]  loss: {:.5f}, lr: {:.7f}".format(
+                epoch,
+                mean_loss.item(),
+                loss.item(),
+                optimizer.param_groups[0]["lr"])
+            
+            # record data
+            df = pd.concat(df, pd.DataFrame([{
+                "epoch": epoch, 
+                "loss": loss.item(), 
+                "triplet": triplet, 
+                "hardnet": hardnet, 
+                "cop": cop
+            }]), ignore_index=True)
+        
+        # Eval
+        topN, dis, top1 = Evaler.eval(model=model, config=config)
+
+        # record data
+        df_eval = pd.concat(df, pd.DataFrame([{
+            "top1": topN[0], 
+            "top2": topN[1], 
+            "top3": topN[2], 
+            "top4": topN[3], 
+            "top5": topN[4], 
+            "dis": dis
+        }]), ignore_index=True)
+        
+        # Save model
+        if topN[0] > precision_best:
+            precision_best = topN[0]
+            if config.save_best:
+                torch.save({'epoch': epoch, 'state_dict': model.state_dict()},
+                        os.path.join(config.save_path, f"{math.ceil(precision_best)}.pth"))
+                print(f"[Save] Save the New best checkpoint, top N: {topN}")
+        if not config.save_best:
             torch.save({'epoch': epoch, 'state_dict': model.state_dict()},
-                       config.save_path)
-            print(f"[Save] Save the New best checkpoint, top N: {topN}")
-    if not config.save_best:
-        torch.save({'epoch': epoch, 'state_dict': model.state_dict()},
-                       config.save_path)
-        print(f"[Save] Save the {epoch} checkpoint, top N: {topN}")
+                        os.path.join(config.save_path, f"epoch{epoch}_{math.ceil(precision_best)}.pth"))
+            print(f"[Save] Save the {epoch} checkpoint, top N: {topN}")
 
-
+    df.to_csv(os.path.join(config.save_path, "train_loss.csv"))
+    df_eval.to_csv(os.path.join(config.save_path, "eval.csv"))
