@@ -39,7 +39,7 @@ class Evaler(object):
         )
         query_features = list()
         for query in query_dataset:
-            query = query.cuda()
+            query = query.to(config.device)
             feature = model(query)
             query_features.extend(feature.cpu().detach().numpy())
 
@@ -59,7 +59,7 @@ class Evaler(object):
 
         reference_features = list()
         for reference in reference_dataset:
-            reference = reference.cuda()
+            reference = reference.to(config.device)
             feature = model(reference)
             reference_features.extend(feature.cpu().detach().numpy())
         # release

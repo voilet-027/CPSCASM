@@ -128,7 +128,7 @@ if __name__ == "__main__":
         # switch to train mode
         model.train()
         optimizer.zero_grad()
-        mean_loss = torch.zeros(1).cuda()
+        mean_loss = torch.zeros(1).to(config.device)
 
         # Log train info
         data_loader = tqdm(dataloader, file=sys.stdout)
@@ -138,7 +138,7 @@ if __name__ == "__main__":
         for step, data in enumerate(data_loader):
 
             a, p, n = data
-            a, p, n = a.cuda(), p.cuda(), n.cuda()
+            a, p, n = a.to(config.device), p.to(config.device), n.to(config.device)
             a, p, n = Variable(a), Variable(p), Variable(n),
             a, p, n = model(a), model(p), model(n)
 

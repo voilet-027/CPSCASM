@@ -6,7 +6,7 @@ import shutil
 class Config(object):
     def __init__(self):
         # 实验名称
-        self.experiment_name = "ViT_ALTO_WithStrategy"
+        self.experiment_name = "ViT_ALTO_Without_Strategy"
         # 模型权重存放路径
         self.save_path = f"/home/dzh/experiment/{self.experiment_name}"
         # 权重保存模式
@@ -21,8 +21,8 @@ class Config(object):
         self.input_dim = 128
         self.output_dim = 256
         self.is_SPT = False
-        self.is_LSA = False
-        self.device = 'cuda:0'
+        self.is_LSA = True
+        self.device = 'cuda:2'
         self.checkpoint = None
 
         # 定义数据集的信息
