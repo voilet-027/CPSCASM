@@ -58,19 +58,16 @@ class ALTOdataset(Dataset):
             self.triplets = list(zip(self.match_csv["query_ind"].tolist() * alpha, self.match_csv["ref_ind"].tolist() *alpha, negatives))[:self.n_triplets]
         else:
             # cal each level triplet nums
-            import pdb
-            pdb.set_trace()
             total_nums = int(self.n_triplets / self.batch_size) * self.batch_size
             nums_of_different_level = np.ceil(np.array(self.samples_level_weight) * total_nums)
             if not nums_of_different_level.sum() == total_nums:
                 nums_of_different_level[np.argmax(nums_of_different_level)] -= nums_of_different_level.sum() - total_nums
 
-            nums_of_different_level = np.ceil(np.array(self.samples_level_weight) * self.n_triplets)
             # 记录所有采样的数据
             all_sample_data = [[], [], []]
             for hard_level, sample_nums in enumerate(nums_of_different_level):
                 # 按照难度载入数据
-                filter_columns = self.match_csv["distance"] < hard_level
+                filter_columns = self.match_csv["distance"] <= hard_level
                 self.match_imgs = list(zip(self.match_csv[filter_columns]["query_ind"], self.match_csv[filter_columns]["ref_ind"]))
                 # given match indices return a list of match querys
                 if len(self.match_imgs) == 0:
@@ -192,14 +189,3 @@ class ALTOEvalDataset(Dataset):
 
     def __len__(self):
         return len(self.data_csv)
-        
-config = Config()
-ALTOdataset(
-    root=config.root,
-    train=True,
-    transform=config.transform,
-    n_triplets=config.n_triplets,
-    fliprot=config.fliprot,
-    use_strategy=config.use_strategy,
-    threshold=[config.threshold, config.each_level_top1]
-)

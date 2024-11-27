@@ -37,7 +37,7 @@ class Config(object):
         self.batch_size = 48
         self.fliprot = True
         self.use_strategy = True
-        self.threshold = 5
+        self.threshold = 10
         self.each_level_top1 = [10 for _ in range(7)]
         self.num_workers = 10
         self.kwargs = {
