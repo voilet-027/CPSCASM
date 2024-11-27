@@ -99,7 +99,7 @@ class Evaler(object):
             average_match_dis += Evaler.calEuliden(query_coords[query_id], reference_coords[predict[0]])
             match_nums[int(math.ceil(match_csv.iloc[row_index]["distance"]))] += 1
 
-        TopN_precision = np.cumsum(TopN_precision) / float(len(match_csv))
+        TopN_precision = np.cumsum(TopN_precision) / float(len(match_csv)) * 100
         average_match_dis /= len(match_csv)
 
         # 返回top1的准确率

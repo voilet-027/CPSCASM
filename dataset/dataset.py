@@ -7,7 +7,7 @@ import torch
 from PIL import Image
 from copy import deepcopy
 from torch.utils.data import Dataset
-import torchvision.transforms as transforms
+from configs.config import Config
 
 class ALTOdataset(Dataset):
     def __init__(self, root, train=True, transform=None, n_triplets = None, batch_size = None, fliprot=True, use_strategy = False,threshold = [5.0, [10 for _ in range(7)]],*args, **kw):
@@ -22,6 +22,9 @@ class ALTOdataset(Dataset):
         self.triplets = list()
         self.threshold = threshold[0]
         top1 = threshold[1]
+        for i in range(len(top1)):
+            if top1[i] == 0:
+                top1[i] += 1
         for i in range(int(math.ceil(self.threshold)), len(top1)):
             top1[i] = 0
         # 求各等级样本分配比例
@@ -55,6 +58,8 @@ class ALTOdataset(Dataset):
             self.triplets = list(zip(self.match_csv["query_ind"].tolist() * alpha, self.match_csv["ref_ind"].tolist() *alpha, negatives))[:self.n_triplets]
         else:
             # cal each level triplet nums
+            import pdb
+            pdb.set_trace()
             total_nums = int(self.n_triplets / self.batch_size) * self.batch_size
             nums_of_different_level = np.ceil(np.array(self.samples_level_weight) * total_nums)
             if not nums_of_different_level.sum() == total_nums:
@@ -188,3 +193,13 @@ class ALTOEvalDataset(Dataset):
     def __len__(self):
         return len(self.data_csv)
         
+config = Config()
+ALTOdataset(
+    root=config.root,
+    train=True,
+    transform=config.transform,
+    n_triplets=config.n_triplets,
+    fliprot=config.fliprot,
+    use_strategy=config.use_strategy,
+    threshold=[config.threshold, config.each_level_top1]
+)

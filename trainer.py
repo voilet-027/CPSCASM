@@ -159,26 +159,26 @@ if __name__ == "__main__":
                 optimizer.param_groups[0]["lr"])
             
             # record data
-            df = pd.concat(df, pd.DataFrame([{
+            df = pd.concat([df, pd.DataFrame([{
                 "epoch": epoch, 
                 "loss": loss.item(), 
                 "triplet": triplet, 
                 "hardnet": hardnet, 
                 "cop": cop
-            }]), ignore_index=True)
+            }])], ignore_index=True)
         
         # Eval
         topN, dis, top1 = Evaler.eval(model=model, config=config)
 
         # record data
-        df_eval = pd.concat(df, pd.DataFrame([{
+        df_eval = pd.concat([df_eval, pd.DataFrame([{
             "top1": topN[0], 
             "top2": topN[1], 
             "top3": topN[2], 
             "top4": topN[3], 
             "top5": topN[4], 
             "dis": dis
-        }]), ignore_index=True)
+        }])], ignore_index=True)
         
         # Save model
         if topN[0] > precision_best:

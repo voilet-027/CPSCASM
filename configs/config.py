@@ -6,7 +6,7 @@ import shutil
 class Config(object):
     def __init__(self):
         # 实验名称
-        self.experiment_name = "DEBUG"
+        self.experiment_name = "ViT_ALTO_WithStrategy"
         # 模型权重存放路径
         self.save_path = f"/home/dzh/experiment/{self.experiment_name}"
         # 权重保存模式
@@ -33,7 +33,7 @@ class Config(object):
             transforms.Resize(self.input_dim),
             transforms.ToTensor()])
         self.train = True
-        self.n_triplets = 20000
+        self.n_triplets = 200000
         self.batch_size = 48
         self.fliprot = True
         self.use_strategy = True
@@ -47,7 +47,7 @@ class Config(object):
         self.test_batch_size = 1
 
         # 定义训练的信息
-        self.epochs = 2
+        self.epochs = 20
         self.weight_decay = 0.05
         self.lr = 0.0001
         # 测试信息

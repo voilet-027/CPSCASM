@@ -1,0 +1,1 @@
+nohup python trainer.py > /home/dzh/logs/ViT_ALTO_WithStrategy.log &
