@@ -7,7 +7,6 @@ import torch
 from PIL import Image
 from copy import deepcopy
 from torch.utils.data import Dataset
-from configs.config import Config
 
 class ALTOdataset(Dataset):
     def __init__(self, root, train=True, transform=None, n_triplets = None, batch_size = None, fliprot=True, use_strategy = False,threshold = [5.0, [10 for _ in range(7)]],*args, **kw):
@@ -51,8 +50,8 @@ class ALTOdataset(Dataset):
             for p in self.match_csv["ref_ind"].tolist() * alpha:
                 # select the p 10 out of it
                 left = p - 10 if p - 10 > 0 else 0
-                right = p + 5 if p + 10 < len(self.match_csv) else len(self.match_csv)
-                negatives.append(random.sample(list(range(0, left)) + list(range(right, len(self.match_csv))), k=1)[0])
+                right = p + 10 if p + 10 < len(self.reference_csv) else len(self.reference_csv)
+                negatives.append(random.sample(list(range(0, left)) + list(range(right, len(self.reference_csv))), k=1)[0])
 
             # make n anchor - positive
             self.triplets = list(zip(self.match_csv["query_ind"].tolist() * alpha, self.match_csv["ref_ind"].tolist() *alpha, negatives))[:self.n_triplets]
@@ -220,7 +219,7 @@ class NYFdataset(Dataset):
 
     def make_triplets(self,):
         # load data info from csv file
-        self.match_csv = pd.read_csv(os.path.join(self.root, "gt_matches.csv"))
+        self.match_csv = pd.read_csv(os.path.join(self.root, "gt_match_col.csv"))
         self.query_csv = pd.read_csv(os.path.join(self.root, "query.csv"))
         self.reference_csv = pd.read_csv(os.path.join(self.root, "reference.csv"))
 
@@ -232,8 +231,8 @@ class NYFdataset(Dataset):
             for p in self.match_csv["ref_ind"].tolist() * alpha:
                 # select the p 10 out of it
                 left = p - 10 if p - 10 > 0 else 0
-                right = p + 5 if p + 10 < len(self.match_csv) else len(self.match_csv)
-                negatives.append(random.sample(list(range(0, left)) + list(range(right, len(self.match_csv))), k=1)[0])
+                right = p + 10 if p + 10 < len(self.reference_csv) else len(self.reference_csv)
+                negatives.append(random.sample(list(range(0, left)) + list(range(right, len(self.reference_csv))), k=1)[0])
 
             # make n anchor - positive
             self.triplets = list(zip(self.match_csv["query_ind"].tolist() * alpha, self.match_csv["ref_ind"].tolist() *alpha, negatives))[:self.n_triplets]
@@ -320,8 +319,8 @@ class NYFdataset(Dataset):
             # get images
             a, p, n = self.triplets[index]
             a = self.transform(Image.open(os.path.join(self.root, "query_images", self.query_csv.iloc[a]["name"])).convert("RGB"))
-            p = self.transform(Image.open(os.path.join(self.root, "reference_images", self.reference_csv.iloc[p]["name"])).convert("RGB"))
-            n = self.transform(Image.open(os.path.join(self.root, "reference_images", self.reference_csv.iloc[n]["name"])).convert("RGB"))
+            p = self.transform(Image.open(os.path.join(self.root, "reference_images/offset_0_None", self.reference_csv.iloc[p]["name"])).convert("RGB"))
+            n = self.transform(Image.open(os.path.join(self.root, "reference_images/offset_0_None", self.reference_csv.iloc[n]["name"])).convert("RGB"))
             
             if self.fliprot:
                 do_flip = random.random() > 0.5
@@ -349,3 +348,24 @@ class NYFdataset(Dataset):
             progress = (epoch - start_epoch) / (end_epoch - start_epoch)
             cosine_decay_value = 0.5 * (1 + math.cos(math.pi * progress))
             return end_value + (start_value - end_value) * cosine_decay_value
+        
+class NYFEvalDataset(Dataset):
+    def __init__(self, root, transform, is_query) -> None:
+        super().__init__()
+        self.root = root
+        self.is_query = is_query
+        self.transform = transform
+        if is_query:
+            self.data_csv = pd.read_csv(os.path.join(root, "query.csv"))
+        else:
+            self.data_csv = pd.read_csv(os.path.join(root, "reference.csv"))
+
+    def __getitem__(self, index):
+        if self.is_query:
+            img = self.transform(Image.open(os.path.join(self.root, "query_images", self.data_csv.iloc[index]["name"])).convert("RGB"))
+        else:
+            img = self.transform(Image.open(os.path.join(self.root, "reference_images/offset_0_None", self.data_csv.iloc[index]["name"])).convert("RGB"))
+        return img
+
+    def __len__(self):
+        return len(self.data_csv)

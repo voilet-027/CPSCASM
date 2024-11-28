@@ -1,4 +1,4 @@
-from configs.config import Config
+from configs.config import Config, NYFConfig
 from Factorys.ModelFactory import ModelMaker
 from Factorys.DataFactory import DataMaker
 from loss.loss import SyntheticLoss
@@ -87,7 +87,10 @@ def create_lr_scheduler(optimizer,
 
 if __name__ == "__main__":
     # ===== Config =====
-    config = Config()
+    # For ALTO
+    # config = Config()
+    # For NYF
+    config = NYFConfig()
 
     # ===== Seed Frozen =====
     setSeedGlobal(config.seed)

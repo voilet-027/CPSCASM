@@ -1,5 +1,5 @@
 import torch.utils.data.dataloader
-from dataset.dataset import ALTOdataset
+from dataset.dataset import ALTOdataset, NYFdataset
 import torch
 
 def Log(msg):
@@ -27,7 +27,7 @@ class DataMaker(object):
                 **config.kwargs
             )
         elif config.dataset_name == "NYF":
-            dataset = ALTOdataset(
+            dataset = NYFdataset(
                 root=config.root,
                 transform=config.transform,
                 fliprot=config.fliprot,

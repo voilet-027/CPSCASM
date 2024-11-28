@@ -1,6 +1,6 @@
 import torch.utils.data.dataloader
 from configs.config import Config
-from dataset.dataset import ALTOEvalDataset
+from dataset.dataset import ALTOEvalDataset, NYFEvalDataset
 import torchvision.transforms as transforms
 import os
 import pandas as pd
@@ -20,43 +20,84 @@ class Evaler(object):
         query_csv = pd.read_csv(os.path.join(config.eval_root, "query.csv"))
         reference_csv = pd.read_csv(os.path.join(config.eval_root, "reference.csv"))
 
-        query_coords = list(zip(query_csv["easting"], query_csv["northing"]))
-        reference_coords = list(zip(reference_csv["easting"], reference_csv["northing"]))
+        if config.dataset_name == "ALTO":
+            query_coords = list(zip(query_csv["easting"], query_csv["northing"]))
+            reference_coords = list(zip(reference_csv["easting"], reference_csv["northing"]))
+        elif config.dataset_name == "NYF":
+            query_coords = list(zip(query_csv["lat"], query_csv["long"]))
+            reference_coords = list(zip(reference_csv["lat"], reference_csv["long"]))
+        else:
+            assert f"dataset name are not excepted, {config.dataset_name}"
 
         # get features
-        query_dataset = torch.utils.data.DataLoader(
-            dataset=ALTOEvalDataset(
-                root=os.path.join(config.eval_root),
-                is_query=True,
-                transform=transforms.Compose([
-                    transforms.Resize(config.input_dim),
-                    transforms.ToTensor()
-                ])
-            ),
-            shuffle=False,
-            num_workers=config.num_workers,
-            batch_size=config.test_batch_size
-        )
+        if config.dataset_name == "ALTO":
+            query_dataset = torch.utils.data.DataLoader(
+                dataset=ALTOEvalDataset(
+                    root=os.path.join(config.eval_root),
+                    is_query=True,
+                    transform=transforms.Compose([
+                        transforms.Resize(config.input_dim),
+                        transforms.ToTensor()
+                    ])
+                ),
+                shuffle=False,
+                num_workers=config.num_workers,
+                batch_size=config.test_batch_size
+            )
+        elif config.dataset_name == "NYF":
+            query_dataset = torch.utils.data.DataLoader(
+                dataset=NYFEvalDataset(
+                    root=os.path.join(config.eval_root),
+                    is_query=True,
+                    transform=transforms.Compose([
+                        transforms.Resize(config.input_dim),
+                        transforms.ToTensor()
+                    ])
+                ),
+                shuffle=False,
+                num_workers=config.num_workers,
+                batch_size=config.test_batch_size
+            )
+        else:
+            assert f"dataset name {config.dataset_name} is not excepted."
+
         query_features = list()
         for query in query_dataset:
             query = query.to(config.device)
             feature = model(query)
             query_features.extend(feature.cpu().detach().numpy())
-
-        reference_dataset = torch.utils.data.DataLoader(
-            dataset=ALTOEvalDataset(
-                root=os.path.join(config.eval_root),
-                is_query=False,
-                transform=transforms.Compose([
-                    transforms.Resize(config.input_dim),
-                    transforms.ToTensor()
-                ])
-            ),
-            shuffle=False,
-            num_workers=config.num_workers,
-            batch_size=config.test_batch_size
-        )
-
+        
+        if config.dataset_name == "ALTO":
+            reference_dataset = torch.utils.data.DataLoader(
+                dataset=ALTOEvalDataset(
+                    root=os.path.join(config.eval_root),
+                    is_query=False,
+                    transform=transforms.Compose([
+                        transforms.Resize(config.input_dim),
+                        transforms.ToTensor()
+                    ])
+                ),
+                shuffle=False,
+                num_workers=config.num_workers,
+                batch_size=config.test_batch_size
+            )
+        elif config.dataset_name == "NYF":
+            reference_dataset = torch.utils.data.DataLoader(
+                dataset=NYFEvalDataset(
+                    root=os.path.join(config.eval_root),
+                    is_query=False,
+                    transform=transforms.Compose([
+                        transforms.Resize(config.input_dim),
+                        transforms.ToTensor()
+                    ])
+                ),
+                shuffle=False,
+                num_workers=config.num_workers,
+                batch_size=config.test_batch_size
+            )
+        else:
+            assert f"dataset name {config.dataset_name} is not excepted."
+        
         reference_features = list()
         for reference in reference_dataset:
             reference = reference.to(config.device)
@@ -74,8 +115,13 @@ class Evaler(object):
 
         TopN_precision = [0] * 5
         average_match_dis = 0.0
+        if config.dataset_name == "ALTO":
+            match_csv = pd.read_csv(os.path.join(config.eval_root, "gt_matches.csv"))
+        elif config.dataset_name == "NYF":
+            match_csv = pd.read_csv(os.path.join(config.eval_root, "gt_match_col.csv"))
+        else:
+            assert f"datset name {config.dataset_name} is not excepted."
 
-        match_csv = pd.read_csv(os.path.join(config.eval_root, "gt_matches.csv"))
         # 记录一下每一种距离的匹配准确度
         num_of_hard_levels = len(set(list(match_csv["distance"].apply(lambda x: math.ceil(x))))) + 1
         match_success = [0 for _ in range(num_of_hard_levels)]
